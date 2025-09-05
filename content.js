@@ -58,8 +58,15 @@
 	}
 
 	function injectForVideo(videoEl) {
-		if (!videoEl || videoEl.getAttribute(PROCESSED_ATTR) === "true") return;
-        if (!shouldRunOnPage()) return;
+		if (!videoEl) return;
+		if (!shouldRunOnPage()) return;
+
+		// Always attach listeners to catch late-loading src
+		videoEl.addEventListener('play', () => injectForVideo(videoEl), { once: true });
+		videoEl.addEventListener('loadstart', () => injectForVideo(videoEl), { once: true });
+
+		if (videoEl.getAttribute(PROCESSED_ATTR) === "true") return;
+
 		const directSrc = videoEl.getAttribute("src");
 		if (!isValidSrc(directSrc)) {
 			const srcEl = videoEl.querySelector("source[src]");
