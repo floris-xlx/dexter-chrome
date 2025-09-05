@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "Dexter Video Downloader",
+  "version": "0.1.0",
+  "description": "Adds a download button below videos with a direct src.",
+  "permissions": [
+    "downloads",
+    "storage"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ],
+  "action": {
+    "default_title": "Dexter",
+    "default_popup": "popup.html"
+  }
+}
+
