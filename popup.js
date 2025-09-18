@@ -3,6 +3,7 @@ const modeSelect = document.getElementById("mode");
 const whitelistContainer = document.getElementById("whitelist-container");
 const whitelistTextarea = document.getElementById("whitelist");
 const statusText = document.getElementById("status-text");
+const videoList = document.getElementById("video-list");
 
 function saveSettings() {
     const settings = {
@@ -42,6 +43,55 @@ function getStatus() {
     });
 }
 
+function formatBytes(bytes, decimals = 2) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}
+
+function loadVideos() {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs[0]) {
+            chrome.tabs.sendMessage(tabs[0].id, { type: "dexter_get_videos" }, (response) => {
+                if (chrome.runtime.lastError || !response || !response.videos || response.videos.length === 0) {
+                    videoList.innerHTML = '<li>No videos found on this page.</li>';
+                    return;
+                }
+
+                const videoPromises = response.videos.map(url =>
+                    new Promise(resolve => {
+                        chrome.runtime.sendMessage({ type: "dexter_get_video_size", url }, (sizeResponse) => {
+                            resolve({ url, size: sizeResponse?.ok ? sizeResponse.size : 0 });
+                        });
+                    })
+                );
+
+                Promise.all(videoPromises).then(videosWithSize => {
+                    videosWithSize.sort((a, b) => b.size - a.size); // Sort descending
+
+                    videoList.innerHTML = ''; // Clear list
+                    videosWithSize.forEach(video => {
+                        const li = document.createElement('li');
+                        const videoName = new URL(video.url).pathname.split('/').pop();
+
+                        li.innerHTML = `
+                            <span class="video-info" title="${video.url}">${videoName}</span>
+                            <span class="video-size">${formatBytes(video.size)}</span>
+                            <button class="open-btn" data-url="${video.url}">Open</button>
+                            <button class="download-btn" data-url="${video.url}">Download</button>
+                        `;
+                        videoList.appendChild(li);
+                    });
+                });
+            });
+        }
+    });
+}
+
+
 function toggleWhitelistVisibility() {
     whitelistContainer.style.display = modeSelect.value === 'whitelist' ? 'flex' : 'none';
 }
@@ -53,7 +103,18 @@ modeSelect.addEventListener("change", () => {
 });
 whitelistTextarea.addEventListener("input", saveSettings);
 
+videoList.addEventListener('click', (e) => {
+    if (e.target.classList.contains('download-btn')) {
+        const url = e.target.dataset.url;
+        chrome.runtime.sendMessage({ type: "dexter_download", url });
+    } else if (e.target.classList.contains('open-btn')) {
+        const url = e.target.dataset.url;
+        chrome.tabs.create({ url });
+    }
+});
+
 document.addEventListener("DOMContentLoaded", () => {
     loadSettings();
     getStatus();
+    loadVideos();
 });

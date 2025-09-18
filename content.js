@@ -189,6 +189,19 @@ function removeAllButtons() {
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (message.type === 'dexter_get_status') {
             sendResponse({ active: shouldRunOnPage() });
+        } else if (message.type === 'dexter_get_videos') {
+            const videoElements = document.querySelectorAll('video');
+            const videoSources = new Set();
+
+            videoElements.forEach(vid => {
+                if (vid.src) videoSources.add(vid.src);
+                const sources = vid.querySelectorAll('source');
+                sources.forEach(s => {
+                    if (s.src) videoSources.add(s.src);
+                });
+            });
+
+            sendResponse({ videos: Array.from(videoSources) });
         }
     });
 

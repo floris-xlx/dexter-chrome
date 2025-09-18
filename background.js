@@ -19,6 +19,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             sendResponse({ ok: false, error: String(e) });
             return false;
         }
+    } else if (message?.type === "dexter_get_video_size" && message?.url) {
+        fetch(message.url, { method: 'HEAD' })
+            .then(response => {
+                if (response.ok) {
+                    const size = response.headers.get('content-length');
+                    sendResponse({ ok: true, size: parseInt(size, 10) || 0 });
+                } else {
+                    sendResponse({ ok: false, error: `HTTP error! status: ${response.status}` });
+                }
+            })
+            .catch(e => {
+                sendResponse({ ok: false, error: String(e) });
+            });
+        return true; // Indicates async response
     }
 });
 

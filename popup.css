@@ -1,8 +1,8 @@
 body {
-    background-color: #ffffff;
-    color: #111111;
+    background-color: #1a1a1a;
+    color: #f1c40f;
     font-family: sans-serif;
-    min-width: 250px;
+    min-width: 300px;
     margin: 0;
     padding: 1rem;
 }
@@ -33,9 +33,11 @@ select,
 textarea {
     width: 100%;
     border-radius: 2px;
-    border: 1px solid #cccccc;
+    border: 1px solid #f1c40f;
     padding: 0.25rem;
     box-sizing: border-box;
+    background-color: #333;
+    color: #fff;
 }
 
 textarea {
@@ -44,4 +46,65 @@ textarea {
 
 #whitelist-container {
     display: none;
+}
+
+hr {
+    border: none;
+    border-top: 1px solid #f1c40f;
+    margin: 1rem 0;
+}
+
+#video-list-container {
+    margin-top: 1rem;
+}
+
+#video-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+#video-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #333;
+    color: #fff;
+}
+
+#video-list li:last-child {
+    border-bottom: none;
+}
+
+#video-list .video-info {
+    flex-grow: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-right: 1rem;
+}
+
+#video-list .video-size {
+    color: #f1c40f;
+    font-weight: bold;
+}
+
+#video-list .download-btn, #video-list .open-btn {
+    background-color: #f1c40f;
+    color: #1a1a1a;
+    border: none;
+    border-radius: 2px;
+    padding: 4px 8px;
+    cursor: pointer;
+    font-weight: bold;
+    margin-left: 5px;
+}
+
+#video-list .open-btn {
+    background-color: #333;
+    color: #f1c40f;
+    border: 1px solid #f1c40f;
 }
