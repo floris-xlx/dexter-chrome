@@ -4,6 +4,11 @@ const whitelistContainer = document.getElementById("whitelist-container");
 const whitelistTextarea = document.getElementById("whitelist");
 const statusText = document.getElementById("status-text");
 const videoList = document.getElementById("video-list");
+const settingsButton = document.getElementById("settings-button");
+
+settingsButton.addEventListener('click', () => {
+    chrome.runtime.openOptionsPage();
+});
 
 function saveSettings() {
     const settings = {
@@ -64,16 +69,26 @@ function loadVideos() {
                 const videoPromises = response.videos.map(url =>
                     new Promise(resolve => {
                         chrome.runtime.sendMessage({ type: "dexter_get_video_size", url }, (sizeResponse) => {
-                            resolve({ url, size: sizeResponse?.ok ? sizeResponse.size : 0 });
+                            if (sizeResponse?.ok) {
+                                resolve({ url, size: sizeResponse.size });
+                            } else {
+                                resolve(null);
+                            }
                         });
                     })
                 );
 
                 Promise.all(videoPromises).then(videosWithSize => {
-                    videosWithSize.sort((a, b) => b.size - a.size); // Sort descending
+                    const validVideos = videosWithSize.filter(Boolean);
+                    validVideos.sort((a, b) => b.size - a.size); // Sort descending
+                    
+                    if (validVideos.length === 0) {
+                        videoList.innerHTML = '<li>No enabled videos found on this page.</li>';
+                        return;
+                    }
 
                     videoList.innerHTML = ''; // Clear list
-                    videosWithSize.forEach(video => {
+                    validVideos.forEach(video => {
                         const li = document.createElement('li');
                         const videoName = new URL(video.url).pathname.split('/').pop();
 

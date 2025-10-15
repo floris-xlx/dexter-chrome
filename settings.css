@@ -1,0 +1,27 @@
+body {
+    font-family: sans-serif;
+    padding: 1em;
+    width: 300px;
+}
+
+h1, h2 {
+    text-align: center;
+}
+
+ul {
+    list-style: none;
+    padding: 0;
+}
+
+li {
+    margin-bottom: 0.5em;
+}
+
+label {
+    display: flex;
+    align-items: center;
+}
+
+input[type="checkbox"] {
+    margin-right: 0.5em;
+}

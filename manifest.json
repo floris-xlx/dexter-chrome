@@ -32,6 +32,7 @@
   "action": {
     "default_title": "Dexter",
     "default_popup": "popup.html"
-  }
+  },
+  "options_page": "settings.html"
 }
 
