@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dexter Image Gallery</title>
+    <link rel="stylesheet" href="images.css">
+</head>
+<body>
+    <div class="toolbar">
+        <div class="left">
+            <div class="title">Images</div>
+            <div id="meta" class="meta"></div>
+        </div>
+        <div class="right">
+            <button id="select-all" class="btn">Select all</button>
+            <button id="select-none" class="btn">Clear</button>
+            <button id="download-selected" class="btn primary">Download selected</button>
+            <button id="zip-selected" class="btn primary">ZIP selected</button>
+        </div>
+    </div>
+
+    <div class="status-row">
+        <div id="status" class="status"></div>
+        <div id="selection" class="status"></div>
+    </div>
+
+    <div id="grid" class="grid"></div>
+
+    <script src="images.js"></script>
+</body>
+</html>
+

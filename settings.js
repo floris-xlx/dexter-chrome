@@ -6,7 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
     chrome.storage.sync.get('enabledExtensions', (data) => {
         const enabledExtensions = data.enabledExtensions || {};
         checkboxes.forEach(checkbox => {
-            checkbox.checked = enabledExtensions[checkbox.value] !== false; // enabled by default
+            checkbox.checked = enabledExtensions[checkbox.value] !== false; 
         });
     });
 

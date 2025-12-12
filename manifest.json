@@ -5,7 +5,8 @@
   "description": "Adds a download button below videos with a direct src.",
   "permissions": [
     "downloads",
-    "storage"
+    "storage",
+    "offscreen"
   ],
   "host_permissions": [
     "<all_urls>"

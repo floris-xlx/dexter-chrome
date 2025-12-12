@@ -58,6 +58,38 @@ hr {
     margin-top: 1rem;
 }
 
+#image-list-container {
+    margin-top: 1rem;
+}
+
+.section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.section-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.action-btn {
+    background-color: #333;
+    color: #f1c40f;
+    border: 1px solid #f1c40f;
+    border-radius: 2px;
+    padding: 4px 6px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.muted {
+    color: #bbb;
+    font-size: 12px;
+    min-height: 16px;
+}
+
 #video-list {
     list-style: none;
     padding: 0;
@@ -97,14 +129,70 @@ hr {
     color: #1a1a1a;
     border: none;
     border-radius: 2px;
-    padding: 4px 8px;
+    padding: 2px 4px;
     cursor: pointer;
     font-weight: bold;
     margin-left: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#video-list .download-btn img {
+    width: 16px;
+    height: 16px;
 }
 
 #video-list .open-btn {
     background-color: #333;
     color: #f1c40f;
     border: 1px solid #f1c40f;
+}
+
+#image-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+#image-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #333;
+    color: #fff;
+}
+
+#image-list li:last-child {
+    border-bottom: none;
+}
+
+#image-list .image-info {
+    flex-grow: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-right: 1rem;
+}
+
+#image-list .download-btn {
+    background-color: #f1c40f;
+    color: #1a1a1a;
+    border: none;
+    border-radius: 2px;
+    padding: 2px 4px;
+    cursor: pointer;
+    font-weight: bold;
+    margin-left: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#image-list .download-btn img {
+    width: 16px;
+    height: 16px;
 }
