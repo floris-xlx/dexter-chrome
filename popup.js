@@ -27,6 +27,38 @@ function setPageScrollbarsHidden(tabId, hidden) {
     });
 }
 
+function downloadZipBuffer({ buffer, filename }) {
+    return new Promise((resolve) => {
+        try {
+            const blob = new Blob([buffer], { type: "application/zip" });
+            const blobUrl = URL.createObjectURL(blob);
+
+            const cleanup = () => setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+
+            if (chrome?.downloads?.download) {
+                chrome.downloads.download({ url: blobUrl, filename, saveAs: false }, (downloadId) => {
+                    cleanup();
+                    if (chrome.runtime.lastError) resolve({ ok: false, error: chrome.runtime.lastError.message });
+                    else resolve({ ok: true, downloadId });
+                });
+                return;
+            }
+
+            const a = document.createElement("a");
+            a.href = blobUrl;
+            a.download = (filename || "dexter.zip").split("/").pop();
+            a.rel = "noopener";
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            cleanup();
+            resolve({ ok: true });
+        } catch (e) {
+            resolve({ ok: false, error: String(e) });
+        }
+    });
+}
+
 settingsButton.addEventListener('click', () => {
     chrome.runtime.openOptionsPage();
 });
@@ -218,9 +250,23 @@ downloadImagesZipButton.addEventListener('click', () => {
         downloadImagesZipButton.disabled = true;
         zipStatus.textContent = 'Preparing ZIP...';
         chrome.runtime.sendMessage({ type: "dexter_download_zip", urls, kind: "media", pageUrl, tabId: zipTabId }, (resp) => {
-            if (chrome.runtime.lastError) return;
-            if (resp?.ok) return;
-            if (resp?.error) zipStatus.textContent = resp.error;
+            if (chrome.runtime.lastError) {
+                chrome.runtime.sendMessage({ type: "dexter_zip_error", error: chrome.runtime.lastError.message });
+                return;
+            }
+            if (!resp?.ok) {
+                chrome.runtime.sendMessage({ type: "dexter_zip_error", error: resp?.error || "ZIP failed" });
+                return;
+            }
+            if (!resp?.buffer || !resp?.filename) {
+                chrome.runtime.sendMessage({ type: "dexter_zip_error", error: "ZIP failed" });
+                return;
+            }
+
+            downloadZipBuffer({ buffer: resp.buffer, filename: resp.filename }).then((r) => {
+                if (!r.ok) chrome.runtime.sendMessage({ type: "dexter_zip_error", error: r.error || "ZIP failed" });
+                else chrome.runtime.sendMessage({ type: "dexter_zip_done", downloadId: r.downloadId, skipped: resp.skipped || 0 });
+            });
         });
     });
 });

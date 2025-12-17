@@ -363,52 +363,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     pageUrl: message.pageUrl,
                     kind: message.kind === "images" ? "images" : (message.kind || "files")
                 });
-
-                await ensureOffscreen();
-                chrome.runtime.sendMessage({
-                    type: "dexter_offscreen_download_blob",
+                sendResponse({
+                    ok: true,
+                    filename: zipName,
                     buffer: zipBytes.buffer,
-                    mimeType: "application/zip",
-                    filename: zipName
-                }, (resp) => {
-                    if (chrome.runtime.lastError) {
-                        chrome.runtime.sendMessage({ type: "dexter_zip_error", error: chrome.runtime.lastError.message });
-                        sendResponse({ ok: false, error: chrome.runtime.lastError.message });
-                        return;
-                    }
-                    if (!resp?.ok) {
-                        chrome.runtime.sendMessage({ type: "dexter_zip_error", error: resp?.error || "ZIP download failed" });
-                        sendResponse({ ok: false, error: resp?.error || "ZIP download failed" });
-                        return;
-                    }
-                    if (!resp?.blobUrl) {
-                        chrome.runtime.sendMessage({ type: "dexter_zip_error", error: "ZIP download failed" });
-                        sendResponse({ ok: false, error: "ZIP download failed" });
-                        return;
-                    }
-
-                    if (!chrome?.downloads?.download) {
-                        chrome.runtime.sendMessage({ type: "dexter_zip_error", error: "Downloads API not available" });
-                        sendResponse({ ok: false, error: "Downloads API not available" });
-                        return;
-                    }
-
-                    chrome.downloads.download({ url: resp.blobUrl, filename: zipName, saveAs: false }, (downloadId) => {
-                        setTimeout(() => {
-                            chrome.runtime.sendMessage({ type: "dexter_offscreen_revoke_blob_url", blobUrl: resp.blobUrl }, () => {
-                                void chrome.runtime.lastError;
-                            });
-                        }, 60_000);
-
-                        if (chrome.runtime.lastError) {
-                            chrome.runtime.sendMessage({ type: "dexter_zip_error", error: chrome.runtime.lastError.message });
-                            sendResponse({ ok: false, error: chrome.runtime.lastError.message });
-                            return;
-                        }
-
-                        chrome.runtime.sendMessage({ type: "dexter_zip_done", downloadId, skipped });
-                        sendResponse({ ok: true, downloadId, skipped });
-                    });
+                    skipped
                 });
             } catch (e) {
                 chrome.runtime.sendMessage({ type: "dexter_zip_error", error: String(e) });
