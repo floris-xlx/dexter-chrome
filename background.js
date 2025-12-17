@@ -84,6 +84,10 @@ function uniqueFilenames(urls, prefix) {
 
 function downloadOne({ url, filename }) {
     return new Promise((resolve) => {
+        if (!chrome?.downloads?.download) {
+            resolve({ ok: false, error: "Downloads API not available" });
+            return;
+        }
         chrome.downloads.download({ url, filename, saveAs: false }, (downloadId) => {
             if (chrome.runtime.lastError) {
                 resolve({ ok: false, error: chrome.runtime.lastError.message });
@@ -148,6 +152,11 @@ function extFromContentType(ct) {
     if (t === "image/webp") return ".webp";
     if (t === "image/svg+xml") return ".svg";
     if (t === "image/avif") return ".avif";
+    if (t === "video/mp4") return ".mp4";
+    if (t === "video/webm") return ".webm";
+    if (t === "video/quicktime") return ".mov";
+    if (t === "video/x-matroska") return ".mkv";
+    if (t === "video/ogg") return ".ogv";
     return "";
 }
 
@@ -299,6 +308,10 @@ async function ensureOffscreen() {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message?.type === "dexter_download" && message?.url) {
         try {
+            if (!chrome?.downloads?.download) {
+                sendResponse({ ok: false, error: "Downloads API not available" });
+                return false;
+            }
             const url = message.url;
             const suggestedFilename = message.filename || new URL(url).pathname.split("/").pop() || "video.mp4";
             chrome.downloads.download({

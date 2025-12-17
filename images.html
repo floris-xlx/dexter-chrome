@@ -9,10 +9,20 @@
 <body>
     <div class="toolbar">
         <div class="left">
-            <div class="title">Images</div>
+            <div class="title">Gallery</div>
             <div id="meta" class="meta"></div>
         </div>
         <div class="right">
+            <div class="toggles">
+                <label class="toggle">
+                    <input id="toggle-images" type="checkbox" checked>
+                    <span>Images</span>
+                </label>
+                <label class="toggle">
+                    <input id="toggle-videos" type="checkbox" checked>
+                    <span>Videos</span>
+                </label>
+            </div>
             <button id="select-all" class="btn">Select all</button>
             <button id="select-none" class="btn">Clear</button>
             <button id="download-selected" class="btn primary">Download selected</button>

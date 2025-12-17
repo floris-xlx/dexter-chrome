@@ -12,7 +12,20 @@ const openImageGalleryButton = document.getElementById("open-image-gallery");
 const zipStatus = document.getElementById("zip-status");
 
 let currentImages = [];
+let currentVideos = [];
 let isZipping = false;
+let zipTabId = null;
+
+function setPopupScrollbarsHidden(hidden) {
+    document.body.classList.toggle("scrollbars-hidden", Boolean(hidden));
+}
+
+function setPageScrollbarsHidden(tabId, hidden) {
+    if (!tabId) return;
+    chrome.tabs.sendMessage(tabId, { type: "dexter_set_scrollbars_hidden", hidden: Boolean(hidden) }, () => {
+        void chrome.runtime.lastError;
+    });
+}
 
 settingsButton.addEventListener('click', () => {
     chrome.runtime.openOptionsPage();
@@ -70,6 +83,7 @@ function loadVideos() {
         if (tabs[0]) {
             chrome.tabs.sendMessage(tabs[0].id, { type: "dexter_get_videos" }, (response) => {
                 if (chrome.runtime.lastError || !response || !response.videos || response.videos.length === 0) {
+                    currentVideos = [];
                     videoList.innerHTML = '<li>No videos found on this page.</li>';
                     return;
                 }
@@ -91,10 +105,12 @@ function loadVideos() {
                     validVideos.sort((a, b) => b.size - a.size); // Sort descending
                     
                     if (validVideos.length === 0) {
+                        currentVideos = [];
                         videoList.innerHTML = '<li>No enabled videos found on this page.</li>';
                         return;
                     }
 
+                    currentVideos = validVideos.map(v => v.url);
                     videoList.innerHTML = ''; // Clear list
                     validVideos.forEach(video => {
                         const li = document.createElement('li');
@@ -188,14 +204,20 @@ downloadAllImagesButton.addEventListener('click', () => {
 });
 
 downloadImagesZipButton.addEventListener('click', () => {
-    if (!currentImages.length) return;
+    if (!currentImages.length && !currentVideos.length) return;
     if (isZipping) return;
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        const tabId = tabs?.[0]?.id;
         const pageUrl = tabs?.[0]?.url;
+        const urls = Array.from(new Set([...(currentImages || []), ...(currentVideos || [])]));
+        if (!urls.length) return;
         isZipping = true;
+        zipTabId = tabId || null;
+        setPopupScrollbarsHidden(true);
+        setPageScrollbarsHidden(zipTabId, true);
         downloadImagesZipButton.disabled = true;
         zipStatus.textContent = 'Preparing ZIP...';
-        chrome.runtime.sendMessage({ type: "dexter_download_zip", urls: currentImages, kind: "images", pageUrl }, (resp) => {
+        chrome.runtime.sendMessage({ type: "dexter_download_zip", urls, kind: "media", pageUrl, tabId: zipTabId }, (resp) => {
             if (chrome.runtime.lastError) return;
             if (resp?.ok) return;
             if (resp?.error) zipStatus.textContent = resp.error;
@@ -204,13 +226,21 @@ downloadImagesZipButton.addEventListener('click', () => {
 });
 
 openImageGalleryButton.addEventListener('click', () => {
-    if (!currentImages.length) return;
+    if (!currentImages.length && !currentVideos.length) return;
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        const tabId = tabs?.[0]?.id;
         const pageUrl = tabs?.[0]?.url;
         chrome.storage.local.set({
             dexterImageGallery: {
                 pageUrl,
                 images: currentImages,
+                savedAt: Date.now()
+            },
+            dexterMediaGallery: {
+                tabId,
+                pageUrl,
+                images: currentImages,
+                videos: currentVideos,
                 savedAt: Date.now()
             }
         }, () => {
@@ -224,12 +254,18 @@ chrome.runtime.onMessage.addListener((message) => {
         zipStatus.textContent = `Zipping ${message.processed}/${message.total} (skipped ${message.skipped})`;
     } else if (message?.type === 'dexter_zip_done') {
         isZipping = false;
+        setPopupScrollbarsHidden(false);
+        setPageScrollbarsHidden(zipTabId, false);
+        zipTabId = null;
         downloadImagesZipButton.disabled = false;
         zipStatus.textContent = message.skipped
             ? `ZIP downloaded (skipped ${message.skipped})`
             : 'ZIP downloaded';
     } else if (message?.type === 'dexter_zip_error') {
         isZipping = false;
+        setPopupScrollbarsHidden(false);
+        setPageScrollbarsHidden(zipTabId, false);
+        zipTabId = null;
         downloadImagesZipButton.disabled = false;
         zipStatus.textContent = message.error || 'ZIP failed';
     }

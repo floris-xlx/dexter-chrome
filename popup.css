@@ -7,6 +7,18 @@ body {
     padding: 1rem;
 }
 
+.scrollbars-hidden,
+.scrollbars-hidden * {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.scrollbars-hidden::-webkit-scrollbar,
+.scrollbars-hidden *::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+}
+
 .container {
     display: flex;
     flex-direction: column;

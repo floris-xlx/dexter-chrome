@@ -235,6 +235,28 @@
             sendResponse({ videos: Array.from(videoSources) });
         } else if (message.type === 'dexter_get_images') {
             sendResponse({ images: collectImages() });
+        } else if (message.type === "dexter_set_scrollbars_hidden") {
+            const id = "dexter-scrollbars-style";
+            const existing = document.getElementById(id);
+            if (message.hidden) {
+                if (!existing) {
+                    const style = document.createElement("style");
+                    style.id = id;
+                    style.textContent = `
+html, body, * {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+}`;
+                    document.documentElement.appendChild(style);
+                }
+            } else {
+                existing?.remove();
+            }
+            sendResponse({ ok: true });
         }
     });
 
