@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Dexter Video Downloader",
-  "version": "0.1.0",
-  "description": "Adds a download button below videos with a direct src.",
+  "name": "DEXTER Scraper",
+  "version": "0.2.0",
+  "description": "Adds a download button below a direct src.",
   "permissions": [
     "downloads",
     "storage",
