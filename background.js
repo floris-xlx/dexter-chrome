@@ -381,8 +381,34 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                         sendResponse({ ok: false, error: resp?.error || "ZIP download failed" });
                         return;
                     }
-                    chrome.runtime.sendMessage({ type: "dexter_zip_done", downloadId: resp.downloadId, skipped });
-                    sendResponse({ ok: true, downloadId: resp.downloadId, skipped });
+                    if (!resp?.blobUrl) {
+                        chrome.runtime.sendMessage({ type: "dexter_zip_error", error: "ZIP download failed" });
+                        sendResponse({ ok: false, error: "ZIP download failed" });
+                        return;
+                    }
+
+                    if (!chrome?.downloads?.download) {
+                        chrome.runtime.sendMessage({ type: "dexter_zip_error", error: "Downloads API not available" });
+                        sendResponse({ ok: false, error: "Downloads API not available" });
+                        return;
+                    }
+
+                    chrome.downloads.download({ url: resp.blobUrl, filename: zipName, saveAs: false }, (downloadId) => {
+                        setTimeout(() => {
+                            chrome.runtime.sendMessage({ type: "dexter_offscreen_revoke_blob_url", blobUrl: resp.blobUrl }, () => {
+                                void chrome.runtime.lastError;
+                            });
+                        }, 60_000);
+
+                        if (chrome.runtime.lastError) {
+                            chrome.runtime.sendMessage({ type: "dexter_zip_error", error: chrome.runtime.lastError.message });
+                            sendResponse({ ok: false, error: chrome.runtime.lastError.message });
+                            return;
+                        }
+
+                        chrome.runtime.sendMessage({ type: "dexter_zip_done", downloadId, skipped });
+                        sendResponse({ ok: true, downloadId, skipped });
+                    });
                 });
             } catch (e) {
                 chrome.runtime.sendMessage({ type: "dexter_zip_error", error: String(e) });
