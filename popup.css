@@ -136,29 +136,75 @@ hr {
     font-weight: bold;
 }
 
-#video-list .download-btn, #video-list .open-btn {
-    background-color: #f1c40f;
-    color: #1a1a1a;
-    border: none;
-    border-radius: 2px;
-    padding: 2px 4px;
-    cursor: pointer;
-    font-weight: bold;
-    margin-left: 5px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-#video-list .download-btn img {
-    width: 16px;
-    height: 16px;
-}
-
 #video-list .open-btn {
     background-color: #333;
     color: #f1c40f;
     border: 1px solid #f1c40f;
+    border-radius: 2px;
+    padding: 2px 6px;
+    font-weight: bold;
+    cursor: pointer;
+    margin-left: 0.5rem;
+}
+
+.download-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
+    padding: 0;
+    border: 1px solid transparent;
+    background: rgba(255, 255, 255, 0.05);
+    color: #f1c40f;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 0.5rem;
+    position: relative;
+    transition: background 0.2s ease;
+}
+
+.download-icon svg {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    stroke-width: 2;
+    fill: none;
+}
+
+.download-icon:hover {
+    background: rgba(241, 196, 15, 0.1);
+}
+
+.download-icon:focus-visible {
+    outline: 2px solid #f1c40f;
+    outline-offset: 2px;
+}
+
+.download-icon.loading {
+    cursor: wait;
+}
+
+.download-icon.loading svg {
+    opacity: 0;
+}
+
+.download-icon.loading::after {
+    content: "";
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border: 2px solid rgba(241, 196, 15, 0.8);
+    border-top-color: transparent;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: dexter-spin 0.7s linear infinite;
+}
+
+@keyframes dexter-spin {
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 #image-list {
@@ -190,21 +236,3 @@ hr {
     margin-right: 1rem;
 }
 
-#image-list .download-btn {
-    background-color: #f1c40f;
-    color: #1a1a1a;
-    border: none;
-    border-radius: 2px;
-    padding: 2px 4px;
-    cursor: pointer;
-    font-weight: bold;
-    margin-left: 5px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-#image-list .download-btn img {
-    width: 16px;
-    height: 16px;
-}

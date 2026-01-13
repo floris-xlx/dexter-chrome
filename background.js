@@ -69,6 +69,47 @@ function filenameFromUrl(url, fallbackBase) {
     }
 }
 
+const BLOCKED_DOWNLOAD_EXTENSIONS = new Set(["htm"]);
+
+function getPathExtension(url) {
+    try {
+        const pathname = new URL(url).pathname;
+        const lastDot = pathname.lastIndexOf(".");
+        if (lastDot === -1) return "";
+        return pathname.slice(lastDot + 1).toLowerCase();
+    } catch (_) {
+        return "";
+    }
+}
+
+function isBlockedDownloadExtension(url) {
+    const extension = getPathExtension(url);
+    return BLOCKED_DOWNLOAD_EXTENSIONS.has(extension);
+}
+
+async function ensureDownloadAllowed(url) {
+    const extension = getPathExtension(url);
+    if (BLOCKED_DOWNLOAD_EXTENSIONS.has(extension)) {
+        return { ok: false, error: ".htm downloads are blocked" };
+    }
+    try {
+        const response = await fetch(url, { method: "HEAD" });
+        if (!response.ok) {
+            return { ok: false, error: `Resource unavailable (${response.status})` };
+        }
+        const lengthHeader = response.headers.get("content-length");
+        if (lengthHeader !== null) {
+            const size = parseInt(lengthHeader, 10);
+            if (!Number.isNaN(size) && size === 0) {
+                return { ok: false, error: "Resource is empty" };
+            }
+        }
+    } catch (error) {
+        console.warn("Failed to validate download URL", url, error);
+    }
+    return { ok: true };
+}
+
 function uniqueFilenames(urls, prefix) {
     const used = new Map();
     return urls.map((url, idx) => {
@@ -173,7 +214,7 @@ function timestampCompact(d = new Date()) {
 }
 
 async function buildZipFromUrls({ urls, pageUrl, kind }) {
-    const safeUrls = Array.isArray(urls) ? urls.filter(Boolean) : [];
+    const safeUrls = (Array.isArray(urls) ? urls.filter(Boolean) : []).filter(url => !isBlockedDownloadExtension(url));
     const names = uniqueFilenames(safeUrls, kind === "images" ? "image" : "file");
     const pageHost = getPageHostname(pageUrl, safeUrls[0]);
 
@@ -277,14 +318,25 @@ async function buildZipFromUrls({ urls, pageUrl, kind }) {
 
 async function downloadMany({ urls, kind, pageUrl }) {
     const safeUrls = Array.isArray(urls) ? urls.filter(Boolean) : [];
-    const pageHost = getPageHostname(pageUrl, safeUrls[0]);
+    const allowedUrls = [];
+    let blocked = 0;
+    for (const url of safeUrls) {
+        const validation = await ensureDownloadAllowed(url);
+        if (validation.ok) {
+            allowedUrls.push(url);
+        } else {
+            blocked++;
+        }
+    }
+
+    const pageHost = getPageHostname(pageUrl, allowedUrls[0]);
     const folder = `Dexter/${pageHost}/${kind || "files"}`;
-    const names = uniqueFilenames(safeUrls, kind === "images" ? "image" : "file");
+    const names = uniqueFilenames(allowedUrls, kind === "images" ? "image" : "file");
 
     let ok = 0;
-    let failed = 0;
-    for (let i = 0; i < safeUrls.length; i++) {
-        const res = await downloadOne({ url: safeUrls[i], filename: `${folder}/${names[i]}` });
+    let failed = blocked;
+    for (let i = 0; i < allowedUrls.length; i++) {
+        const res = await downloadOne({ url: allowedUrls[i], filename: `${folder}/${names[i]}` });
         if (res.ok) ok++;
         else failed++;
     }
@@ -307,29 +359,37 @@ async function ensureOffscreen() {
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message?.type === "dexter_download" && message?.url) {
-        try {
-            if (!chrome?.downloads?.download) {
-                sendResponse({ ok: false, error: "Downloads API not available" });
-                return false;
-            }
-            const url = message.url;
-            const suggestedFilename = message.filename || new URL(url).pathname.split("/").pop() || "video.mp4";
-            chrome.downloads.download({
-                url,
-                filename: suggestedFilename,
-                saveAs: false
-            }, (downloadId) => {
-                if (chrome.runtime.lastError) {
-                    sendResponse({ ok: false, error: chrome.runtime.lastError.message });
-                } else {
-                    sendResponse({ ok: true, downloadId });
+        (async () => {
+            try {
+                if (!chrome?.downloads?.download) {
+                    sendResponse({ ok: false, error: "Downloads API not available" });
+                    return;
                 }
-            });
-            return true;
-        } catch (e) {
-            sendResponse({ ok: false, error: String(e) });
-            return false;
-        }
+
+                const validation = await ensureDownloadAllowed(message.url);
+                if (!validation.ok) {
+                    sendResponse(validation);
+                    return;
+                }
+
+                const url = message.url;
+                const suggestedFilename = message.filename || new URL(url).pathname.split("/").pop() || "video.mp4";
+                chrome.downloads.download({
+                    url,
+                    filename: suggestedFilename,
+                    saveAs: false
+                }, (downloadId) => {
+                    if (chrome.runtime.lastError) {
+                        sendResponse({ ok: false, error: chrome.runtime.lastError.message });
+                    } else {
+                        sendResponse({ ok: true, downloadId });
+                    }
+                });
+            } catch (e) {
+                sendResponse({ ok: false, error: String(e) });
+            }
+        })();
+        return true;
     } else if (message?.type === "dexter_get_video_size" && message?.url) {
         isVideoEnabled(message.url).then(isEnabled => {
             if (isEnabled) {

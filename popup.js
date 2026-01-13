@@ -16,6 +16,52 @@ let currentVideos = [];
 let isZipping = false;
 let zipTabId = null;
 
+const BLOCKED_DOWNLOAD_EXTENSIONS = new Set(["htm"]);
+const IMAGE_VALIDATION_CONCURRENCY = 4;
+const DOWNLOAD_ICON_SVG = `
+    <svg viewBox="0 0 24 24" role="presentation" aria-hidden="true" focusable="false">
+        <path d="M12 4v10m0 0l-3-3m3 3l3-3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        <path d="M6 18h12" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+    </svg>
+`;
+
+function getUrlExtension(url) {
+    try {
+        const pathname = new URL(url).pathname;
+        const lastDot = pathname.lastIndexOf(".");
+        if (lastDot === -1) return "";
+        return pathname.slice(lastDot + 1).toLowerCase();
+    } catch (_) {
+        return "";
+    }
+}
+
+function getDisplayName(url) {
+    try {
+        const segments = new URL(url).pathname.split("/");
+        const last = segments.pop();
+        return last || url;
+    } catch (_) {
+        return url;
+    }
+}
+
+function isBlockedExtension(url) {
+    const extension = getUrlExtension(url);
+    return BLOCKED_DOWNLOAD_EXTENSIONS.has(extension);
+}
+
+function setDownloadLoading(button, loading) {
+    if (!button) return;
+    button.classList.toggle("loading", Boolean(loading));
+    button.disabled = Boolean(loading);
+    if (loading) {
+        button.setAttribute("aria-busy", "true");
+    } else {
+        button.removeAttribute("aria-busy");
+    }
+}
+
 function setPopupScrollbarsHidden(hidden) {
     document.body.classList.toggle("scrollbars-hidden", Boolean(hidden));
 }
@@ -110,6 +156,42 @@ function formatBytes(bytes, decimals = 2) {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }
 
+async function fetchImageContentLength(url) {
+    try {
+        const response = await fetch(url, { method: "HEAD" });
+        if (!response.ok) return null;
+        const header = response.headers.get("content-length");
+        if (!header) return null;
+        const size = parseInt(header, 10);
+        return Number.isNaN(size) ? null : size;
+    } catch (_) {
+        return null;
+    }
+}
+
+async function validateImageUrlEntry(url) {
+    if (isBlockedExtension(url)) return null;
+    const size = await fetchImageContentLength(url);
+    if (size === 0) return null;
+    return { url, size };
+}
+
+async function validateImageUrls(urls) {
+    if (!urls.length) return [];
+    const results = new Array(urls.length);
+    let cursor = 0;
+    const concurrency = Math.min(IMAGE_VALIDATION_CONCURRENCY, urls.length);
+    const worker = async () => {
+        while (true) {
+            const index = cursor++;
+            if (index >= urls.length) break;
+            results[index] = await validateImageUrlEntry(urls[index]);
+        }
+    };
+    await Promise.all(Array.from({ length: concurrency }, () => worker()));
+    return results.filter(Boolean);
+}
+
 function loadVideos() {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         if (tabs[0]) {
@@ -134,25 +216,27 @@ function loadVideos() {
 
                 Promise.all(videoPromises).then(videosWithSize => {
                     const validVideos = videosWithSize.filter(Boolean);
-                    validVideos.sort((a, b) => b.size - a.size); // Sort descending
+                    const filteredVideos = validVideos.filter(video => !isBlockedExtension(video.url));
+                    filteredVideos.sort((a, b) => (b.size || 0) - (a.size || 0));
                     
-                    if (validVideos.length === 0) {
+                    if (filteredVideos.length === 0) {
                         currentVideos = [];
                         videoList.innerHTML = '<li>No enabled videos found on this page.</li>';
                         return;
                     }
 
-                    currentVideos = validVideos.map(v => v.url);
+                    currentVideos = filteredVideos;
                     videoList.innerHTML = ''; // Clear list
-                    validVideos.forEach(video => {
+                    filteredVideos.forEach(video => {
                         const li = document.createElement('li');
-                        const videoName = new URL(video.url).pathname.split('/').pop();
+                        const videoName = getDisplayName(video.url);
+                        const sizeLabel = typeof video.size === 'number' ? formatBytes(video.size) : 'Unknown';
 
                         li.innerHTML = `
                             <span class="video-info" title="${video.url}">${videoName}</span>
-                            <span class="video-size">${formatBytes(video.size)}</span>
-                            <button class="open-btn" data-url="${video.url}">Open</button>
-                            <button class="download-btn" data-url="${video.url}"><img src="icons/download.svg" alt="Download"></button>
+                            <span class="video-size">${sizeLabel}</span>
+                            <button class="open-btn" data-url="${video.url}" type="button">Open</button>
+                            <button class="download-icon" data-url="${video.url}" type="button" aria-label="Download video">${DOWNLOAD_ICON_SVG}</button>
                         `;
                         videoList.appendChild(li);
                     });
@@ -165,24 +249,43 @@ function loadVideos() {
 function loadImages() {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         if (!tabs[0]) return;
-        chrome.tabs.sendMessage(tabs[0].id, { type: "dexter_get_images" }, (response) => {
+        chrome.tabs.sendMessage(tabs[0].id, { type: "dexter_get_images" }, async (response) => {
             if (chrome.runtime.lastError || !response || !Array.isArray(response.images) || response.images.length === 0) {
                 currentImages = [];
                 imageList.innerHTML = '<li>No images found on this page.</li>';
                 return;
             }
 
-            currentImages = response.images.slice();
+            const dedupedImages = Array.from(new Set(response.images.filter(Boolean)));
+            if (!dedupedImages.length) {
+                currentImages = [];
+                imageList.innerHTML = '<li>No images found on this page.</li>';
+                return;
+            }
+
+            imageList.innerHTML = '<li>Validating images...</li>';
+            let validated = [];
+            try {
+                validated = await validateImageUrls(dedupedImages);
+            } catch (error) {
+                console.error("Failed to validate images", error);
+            }
+
+            currentImages = validated;
+            if (!currentImages.length) {
+                imageList.innerHTML = '<li>No downloadable images found on this page.</li>';
+                return;
+            }
+
             const maxShown = 50;
             const shown = currentImages.slice(0, maxShown);
             imageList.innerHTML = '';
-
-            shown.forEach((url) => {
+            shown.forEach((image) => {
                 const li = document.createElement('li');
-                const name = new URL(url).pathname.split('/').pop() || url;
+                const name = getDisplayName(image.url);
                 li.innerHTML = `
-                    <span class="image-info" title="${url}">${name}</span>
-                    <button class="download-btn" data-url="${url}"><img src="icons/download.svg" alt="Download"></button>
+                    <span class="image-info" title="${image.url}">${name}</span>
+                    <button class="download-icon" data-url="${image.url}" type="button" aria-label="Download image">${DOWNLOAD_ICON_SVG}</button>
                 `;
                 imageList.appendChild(li);
             });
@@ -209,11 +312,20 @@ modeSelect.addEventListener("change", () => {
 whitelistTextarea.addEventListener("input", saveSettings);
 
 videoList.addEventListener('click', (e) => {
-    const downloadBtn = e.target.closest?.('button.download-btn');
+    const downloadBtn = e.target.closest?.('button.download-icon');
     const openBtn = e.target.closest?.('button.open-btn');
     if (downloadBtn) {
         const url = downloadBtn.dataset.url;
-        chrome.runtime.sendMessage({ type: "dexter_download", url });
+        if (!url) return;
+        setDownloadLoading(downloadBtn, true);
+        chrome.runtime.sendMessage({ type: "dexter_download", url }, (resp) => {
+            setDownloadLoading(downloadBtn, false);
+            if (chrome.runtime.lastError) {
+                console.warn("Download error:", chrome.runtime.lastError.message);
+            } else if (!resp?.ok) {
+                console.warn("Download blocked:", resp?.error);
+            }
+        });
     } else if (openBtn) {
         const url = openBtn.dataset.url;
         chrome.tabs.create({ url });
@@ -221,17 +333,26 @@ videoList.addEventListener('click', (e) => {
 });
 
 imageList.addEventListener('click', (e) => {
-    const downloadBtn = e.target.closest?.('button.download-btn');
+    const downloadBtn = e.target.closest?.('button.download-icon');
     if (!downloadBtn) return;
     const url = downloadBtn.dataset.url;
-    chrome.runtime.sendMessage({ type: "dexter_download", url });
+    if (!url) return;
+    setDownloadLoading(downloadBtn, true);
+    chrome.runtime.sendMessage({ type: "dexter_download", url }, (resp) => {
+        setDownloadLoading(downloadBtn, false);
+        if (chrome.runtime.lastError) {
+            console.warn("Download error:", chrome.runtime.lastError.message);
+        } else if (!resp?.ok) {
+            console.warn("Download blocked:", resp?.error);
+        }
+    });
 });
 
 downloadAllImagesButton.addEventListener('click', () => {
     if (!currentImages.length) return;
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         const pageUrl = tabs?.[0]?.url;
-        chrome.runtime.sendMessage({ type: "dexter_download_many", urls: currentImages, kind: "images", pageUrl });
+        chrome.runtime.sendMessage({ type: "dexter_download_many", urls: currentImages.map(img => img.url), kind: "images", pageUrl });
     });
 });
 
@@ -241,7 +362,9 @@ downloadImagesZipButton.addEventListener('click', () => {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         const tabId = tabs?.[0]?.id;
         const pageUrl = tabs?.[0]?.url;
-        const urls = Array.from(new Set([...(currentImages || []), ...(currentVideos || [])]));
+        const imageUrls = currentImages.map(img => img.url);
+        const videoUrls = currentVideos.map(video => video.url);
+        const urls = Array.from(new Set([...imageUrls, ...videoUrls]));
         if (!urls.length) return;
         isZipping = true;
         zipTabId = tabId || null;
@@ -279,14 +402,14 @@ openImageGalleryButton.addEventListener('click', () => {
         chrome.storage.local.set({
             dexterImageGallery: {
                 pageUrl,
-                images: currentImages,
+                images: currentImages.map(img => img.url),
                 savedAt: Date.now()
             },
             dexterMediaGallery: {
                 tabId,
                 pageUrl,
-                images: currentImages,
-                videos: currentVideos,
+                images: currentImages.map(img => img.url),
+                videos: currentVideos.map(video => video.url),
                 savedAt: Date.now()
             }
         }, () => {
